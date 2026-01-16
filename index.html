@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ATS Resume Score – Free ATS Resume Checker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Free ATS Resume Checker. Upload your resume and job description to get ATS score and alignment insights." />
+
+  <!-- AdSense -->
+  <meta name="google-adsense-account" content="ca-pub-3044896855690424">
+
+  <!-- PDF & DOCX -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
+
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #0f172a, #020617);
+      color: #e5e7eb;
+    }
+
+    .container {
+      max-width: 920px;
+      margin: auto;
+      padding: 48px 20px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 42px;
+      margin-bottom: 12px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #94a3b8;
+      margin-bottom: 40px;
+    }
+
+    .card {
+      background: #020617;
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 28px;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.05);
+    }
+
+    label {
+      font-weight: 600;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    input[type="file"], textarea {
+      width: 100%;
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 14px;
+      color: #e5e7eb;
+      margin-bottom: 18px;
+    }
+
+    textarea {
+      min-height: 140px;
+      resize: vertical;
+    }
+
+    button {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: 700;
+      background: linear-gradient(90deg, #22c55e, #16a34a);
+      color: #020617;
+      cursor: pointer;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    .score-box {
+      text-align: center;
+      font-size: 64px;
+      font-weight: 800;
+      margin: 10px 0;
+    }
+
+    .green { color: #22c55e; }
+    .yellow { color: #facc15; }
+    .red { color: #ef4444; }
+
+    .breakdown {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin-top: 24px;
+    }
+
+    .metric {
+      background: #020617;
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid #1e293b;
+    }
+
+    .metric span {
+      float: right;
+      font-weight: 700;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 60px;
+      font-size: 14px;
+      color: #64748b;
+    }
+
+    footer a {
+      color: #64748b;
+      text-decoration: none;
+      margin: 0 10px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>ATS Resume Score</h1>
+  <p class="subtitle">Upload your resume and job description to see how ATS-friendly your resume is</p>
+
+  <div class="card">
+    <label>Upload Resume (PDF or DOCX)</label>
+    <input type="file" id="resumeFile" accept=".pdf,.doc,.docx">
+
+    <label>Paste Job Description</label>
+    <textarea id="jobDesc" placeholder="Paste the job description here..."></textarea>
+
+    <button onclick="analyze()">Check ATS Score</button>
+  </div>
+
+  <div class="card" id="result" style="display:none;">
+    <h2 style="text-align:center;">ATS Score</h2>
+    <div id="score" class="score-box"></div>
+
+    <div class="breakdown">
+      <div class="metric">Keyword Match <span id="k1"></span></div>
+      <div class="metric">Skills Alignment <span id="k2"></span></div>
+      <div class="metric">Role Match <span id="k3"></span></div>
+      <div class="metric">Experience Relevance <span id="k4"></span></div>
+      <div class="metric">ATS Formatting <span id="k5"></span></div>
+    </div>
+  </div>
+
+  <footer>
+    <a href="about.html">About</a> |
+    <a href="privacy.html">Privacy</a> |
+    <a href="contact.html">Contact</a>
+  </footer>
+</div>
+
+<script>
+async function extractText(file) {
+  if (file.type === "application/pdf") {
+    const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
+    let text = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(i => i.str).join(" ");
+    }
+    return text.toLowerCase();
+  } else {
+    const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+    return result.value.toLowerCase();
+  }
+}
+
+function scoreSection(match, weight) {
+  return Math.min(1, match) * weight * 100;
+}
+
+async function analyze() {
+  const file = document.getElementById("resumeFile").files[0];
+  const jd = document.getElementById("jobDesc").value.toLowerCase();
+
+  if (!file || !jd) {
+    alert("Upload resume and paste job description");
+    return;
+  }
+
+  const resume = await extractText(file);
+  const jdWords = [...new Set(jd.split(/\W+/))];
+
+  let hits = jdWords.filter(w => resume.includes(w)).length;
+  let ratio = hits / jdWords.length;
+
+  const s1 = scoreSection(ratio, 0.45);
+  const s2 = scoreSection(ratio * 0.9, 0.25);
+  const s3 = scoreSection(ratio * 0.8, 0.15);
+  const s4 = scoreSection(ratio * 0.85, 0.10);
+  const s5 = 5;
+
+  const total = Math.round(s1 + s2 + s3 + s4 + s5);
+
+  const scoreEl = document.getElementById("score");
+  scoreEl.textContent = total + "%";
+  scoreEl.className = "score-box " + (total >= 70 ? "green" : total >= 50 ? "yellow" : "red");
+
+  document.getElementById("k1").textContent = Math.round(s1) + "%";
+  document.getElementById("k2").textContent = Math.round(s2) + "%";
+  document.getElementById("k3").textContent = Math.round(s3) + "%";
+  document.getElementById("k4").textContent = Math.round(s4) + "%";
+  document.getElementById("k5").textContent = "5%";
+
+  document.getElementById("result").style.display = "block";
+}
+</script>
+
+</body>
+</html>
